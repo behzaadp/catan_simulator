@@ -20,7 +20,7 @@ def evaluate_placements(board, player_color):
             if hex_tile.number:
                 pip = PIPS.get(hex_tile.number, 0)
                 total_pips += pip
-                numbers_gathered.add(hex_tile.number) # Track unique numbers
+                numbers_gathered.add(hex_tile.number) 
                 
                 if hex_tile.resource != "Desert":
                     resources_gathered.add(hex_tile.resource)
@@ -77,7 +77,7 @@ def evaluate_placements(board, player_color):
                 feedback.append(f"Massive Synergy! High {resource_type} production on a {resource_type} port.")
                 bonus_score += 4
             elif resource_pips.get(resource_type, 0) == 0:
-                feedback.append(f"Wasted Port: You started on a {resource_type} port but produce NO {resource_type}.")
+                feedback.append(f"Wasted Port: Started on a {resource_type} port but produce NO {resource_type}.")
                 bonus_score -= 2
             else:
                 feedback.append(f"Decent {resource_type} port setup, but needs more {resource_type} pips.")
@@ -95,17 +95,24 @@ def evaluate_placements(board, player_color):
             target_pips = sum([PIPS.get(h.number, 0) for h in target_node.hexes if h.number])
             target_has_port = any(e.port for e in target_node.edges)
             
-            if not board.is_valid_settlement(target_node):
-                feedback.append(f"Road {i+1} Warning: Points to an invalid/blocked intersection!")
+            # Find how many paths we can take from this target node
+            available_next_edges = [e for e in target_node.edges if e != edge and e.road is None]
+            
+            # Check for actual blockers
+            if target_node.building is not None and target_node.building != player_color:
+                feedback.append(f"Road {i+1} Warning: Blocked by an opponent's settlement!")
+                bonus_score -= 2
+            elif len(available_next_edges) == 0:
+                feedback.append(f"Road {i+1} Warning: Points to a dead end with no further paths.")
                 bonus_score -= 2
             elif target_has_port:
-                feedback.append(f"Road {i+1} Trajectory: Excellent! Pointing directly towards a new port.")
+                feedback.append(f"Road {i+1} Trajectory: Excellent! Pointing towards a new port.")
                 bonus_score += 2
             elif target_pips >= 8:
-                feedback.append(f"Road {i+1} Trajectory: Strong! Points to a high-yield spot ({target_pips} pips).")
+                feedback.append(f"Road {i+1} Trajectory: Strong! Points to high-yield hexes ({target_pips} pips).")
                 bonus_score += 2
             elif target_pips <= 4:
-                feedback.append(f"Road {i+1} Trajectory: Weak. Points to a low-yield dead zone ({target_pips} pips).")
+                feedback.append(f"Road {i+1} Trajectory: Weak. Points to a low-yield zone ({target_pips} pips).")
                 bonus_score -= 1
 
     # 6. Assign Grade
@@ -122,7 +129,6 @@ def evaluate_placements(board, player_color):
     else:
         grade = "D (Needs Improvement)"
 
-    # Slice feedback to 9 items so it fits nicely in the UI
     if len(feedback) > 9:
         feedback = feedback[:9]
 

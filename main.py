@@ -53,7 +53,6 @@ def main():
                     phase = "SETTLEMENT"
                     board = Board()
                     state = "GAME"
-                    # Ensure panel is open when starting a new game
                     panel_minimized = False 
                     
             elif state == "GAME":
@@ -79,8 +78,11 @@ def main():
                                     phase = "SETTLEMENT"
                 else:
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        # Define toggle button clickable area based on state
-                        btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 50 if panel_minimized else HEIGHT - 290, 110, 30)
+                        # FIXED: Click detection now precisely matches the drawn UI coordinates
+                        if panel_minimized:
+                            btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 55, 110, 30)
+                        else:
+                            btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 325, 110, 30)
                         
                         if btn_toggle.collidepoint(event.pos):
                             panel_minimized = not panel_minimized
@@ -135,14 +137,13 @@ def main():
                 done_text = font_ui.render("Initial Placements Complete!", True, BLACK)
                 screen.blit(done_text, (20, 20))
 
-                # --- EVALUATION UI PANEL (Dynamic Size) ---
+                # --- EVALUATION UI PANEL ---
                 grade, pips, feedback = evaluate_placements(board, PLAYER_COLORS[0])
                 
                 if panel_minimized:
                     panel_rect = pygame.Rect(20, HEIGHT - 70, WIDTH - 40, 60)
                     btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 55, 110, 30)
                 else:
-                    # Increased height to 320 to fit up to 9 feedback points
                     panel_rect = pygame.Rect(20, HEIGHT - 340, WIDTH - 40, 320)
                     btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 325, 110, 30)
 
@@ -171,7 +172,7 @@ def main():
                         fb_text = font_small.render(f"• {fb}", True, (50, 50, 50))
                         screen.blit(fb_text, (40, HEIGHT - 250 + (i * 25)))
 
-                # Draw Play Again and Menu Buttons (Top Right)
+                # Draw Play Again and Menu Buttons 
                 pygame.draw.rect(screen, WHITE, btn_play_again)
                 pygame.draw.rect(screen, BLACK, btn_play_again, 3)
                 pa_text = font_large.render("Play Again", True, BLACK)

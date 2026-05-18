@@ -5,7 +5,7 @@ from constants import *
 from menu import Menu
 from board import Board
 from bot import bot_get_best_settlement, bot_get_best_road
-from evaluator import evaluate_placements # IMPORT ALGORITHM 2
+from evaluator import evaluate_placements 
 
 def main():
     pygame.init()
@@ -26,6 +26,9 @@ def main():
     current_turn_index = 0
     phase = "SETTLEMENT"
     last_placed_node = None
+    
+    # State variable for the evaluation panel UI
+    panel_minimized = False
 
     # End Game Buttons
     btn_play_again = pygame.Rect(WIDTH - 220, 20, 200, 50)
@@ -50,6 +53,8 @@ def main():
                     phase = "SETTLEMENT"
                     board = Board()
                     state = "GAME"
+                    # Ensure panel is open when starting a new game
+                    panel_minimized = False 
                     
             elif state == "GAME":
                 if phase != "FINISHED":
@@ -74,12 +79,18 @@ def main():
                                     phase = "SETTLEMENT"
                 else:
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        if btn_play_again.collidepoint(event.pos):
+                        # Define toggle button clickable area based on state
+                        btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 50 if panel_minimized else HEIGHT - 290, 110, 30)
+                        
+                        if btn_toggle.collidepoint(event.pos):
+                            panel_minimized = not panel_minimized
+                        elif btn_play_again.collidepoint(event.pos):
                             random.shuffle(players)
                             draft_sequence = list(range(len(players))) + list(range(len(players) - 1, -1, -1))
                             current_turn_index = 0
                             phase = "SETTLEMENT"
                             last_placed_node = None
+                            panel_minimized = False
                             board = Board()
                         elif btn_menu.collidepoint(event.pos):
                             state = "MENU"
@@ -121,24 +132,45 @@ def main():
                 screen.blit(action_text, (20, 60))
             
             else:
-                # --- EVALUATION UI PANEL ---
+                done_text = font_ui.render("Initial Placements Complete!", True, BLACK)
+                screen.blit(done_text, (20, 20))
+
+                # --- EVALUATION UI PANEL (Dynamic Size) ---
                 grade, pips, feedback = evaluate_placements(board, PLAYER_COLORS[0])
                 
-                panel_rect = pygame.Rect(20, HEIGHT - 220, WIDTH - 40, 200)
+                if panel_minimized:
+                    panel_rect = pygame.Rect(20, HEIGHT - 70, WIDTH - 40, 60)
+                    btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 55, 110, 30)
+                else:
+                    panel_rect = pygame.Rect(20, HEIGHT - 300, WIDTH - 40, 280)
+                    btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 285, 110, 30)
+
                 pygame.draw.rect(screen, (240, 240, 240), panel_rect, border_radius=10)
                 pygame.draw.rect(screen, BLACK, panel_rect, 3, border_radius=10)
                 
-                title_text = font_ui.render(f"Placement Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
-                screen.blit(title_text, (40, HEIGHT - 200))
-                
-                pip_text = font_large.render(f"Total Raw Production (Pips): {pips}", True, BLACK)
-                screen.blit(pip_text, (40, HEIGHT - 160))
-                
-                for i, fb in enumerate(feedback):
-                    fb_text = font_small.render(f"• {fb}", True, (50, 50, 50))
-                    screen.blit(fb_text, (40, HEIGHT - 120 + (i * 25)))
+                # Draw Toggle Button
+                pygame.draw.rect(screen, (200, 200, 200), btn_toggle, border_radius=5)
+                pygame.draw.rect(screen, BLACK, btn_toggle, 2, border_radius=5)
+                toggle_label = "Expand ▲" if panel_minimized else "Minimize ▼"
+                toggle_text = font_small.render(toggle_label, True, BLACK)
+                screen.blit(toggle_text, toggle_text.get_rect(center=btn_toggle.center))
 
-                # Draw Buttons
+                # Draw Panel Content
+                if panel_minimized:
+                    title_text = font_ui.render(f"Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
+                    screen.blit(title_text, (40, HEIGHT - 55))
+                else:
+                    title_text = font_ui.render(f"Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
+                    screen.blit(title_text, (40, HEIGHT - 285))
+                    
+                    pip_text = font_large.render(f"Total Raw Production (Pips): {pips}", True, BLACK)
+                    screen.blit(pip_text, (40, HEIGHT - 245))
+                    
+                    for i, fb in enumerate(feedback):
+                        fb_text = font_small.render(f"• {fb}", True, (50, 50, 50))
+                        screen.blit(fb_text, (40, HEIGHT - 210 + (i * 25)))
+
+                # Draw Play Again and Menu Buttons (Top Right)
                 pygame.draw.rect(screen, WHITE, btn_play_again)
                 pygame.draw.rect(screen, BLACK, btn_play_again, 3)
                 pa_text = font_large.render("Play Again", True, BLACK)

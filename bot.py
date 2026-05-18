@@ -9,11 +9,28 @@ def bot_get_best_settlement(board):
         if not board.is_valid_settlement(node):
             continue
         
-        # Calculate score based on adjacent hex probabilities
         score = 0
+        node_resources = {}
+        
+        # 1. Base raw production score
         for hex_tile in node.hexes:
             if hex_tile.number:
-                score += PIPS.get(hex_tile.number, 0)
+                pip = PIPS.get(hex_tile.number, 0)
+                score += pip
+                node_resources[hex_tile.resource] = node_resources.get(hex_tile.resource, 0) + pip
+        
+        # 2. Factor in Port placement
+        for edge in node.edges:
+            if edge.port:
+                if edge.port == "? 3:1":
+                    score += 2  # Flat bonus for flexible 3:1 port
+                else:
+                    port_res = edge.port.split()[0]
+                    # If the bot is producing the resource of the port, it's highly valuable
+                    if node_resources.get(port_res, 0) > 0:
+                        score += 4 
+                    else:
+                        score += 1 # Minor bonus just for having a specific port
         
         if score > max_score:
             max_score = score
@@ -21,8 +38,8 @@ def bot_get_best_settlement(board):
         elif score == max_score:
             best_nodes.append(node)
             
-    # Randomly pick among tied "best" spots to keep games varied
     return random.choice(best_nodes) if best_nodes else None
+
 
 def bot_get_best_road(board, settlement_node):
     best_edges = []
@@ -32,13 +49,19 @@ def bot_get_best_road(board, settlement_node):
         if edge.road is not None:
             continue
             
-        # Look at the node on the other side of this edge to judge value
         other_node = edge.node1 if edge.node2 == settlement_node else edge.node2
         score = 0
+        
+        # 1. Check raw production of target node
         for hex_tile in other_node.hexes:
             if hex_tile.number:
                 score += PIPS.get(hex_tile.number, 0)
                 
+        # 2. Strongly prefer moving towards a port
+        target_has_port = any(e.port for e in other_node.edges)
+        if target_has_port:
+            score += 3
+            
         if score > max_score:
             max_score = score
             best_edges = [edge]

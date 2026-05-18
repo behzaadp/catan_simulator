@@ -142,8 +142,9 @@ def main():
                     panel_rect = pygame.Rect(20, HEIGHT - 70, WIDTH - 40, 60)
                     btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 55, 110, 30)
                 else:
-                    panel_rect = pygame.Rect(20, HEIGHT - 300, WIDTH - 40, 280)
-                    btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 285, 110, 30)
+                    # Increased height to 320 to fit up to 9 feedback points
+                    panel_rect = pygame.Rect(20, HEIGHT - 340, WIDTH - 40, 320)
+                    btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 325, 110, 30)
 
                 pygame.draw.rect(screen, (240, 240, 240), panel_rect, border_radius=10)
                 pygame.draw.rect(screen, BLACK, panel_rect, 3, border_radius=10)
@@ -161,14 +162,14 @@ def main():
                     screen.blit(title_text, (40, HEIGHT - 55))
                 else:
                     title_text = font_ui.render(f"Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
-                    screen.blit(title_text, (40, HEIGHT - 285))
+                    screen.blit(title_text, (40, HEIGHT - 325))
                     
                     pip_text = font_large.render(f"Total Raw Production (Pips): {pips}", True, BLACK)
-                    screen.blit(pip_text, (40, HEIGHT - 245))
+                    screen.blit(pip_text, (40, HEIGHT - 285))
                     
                     for i, fb in enumerate(feedback):
                         fb_text = font_small.render(f"• {fb}", True, (50, 50, 50))
-                        screen.blit(fb_text, (40, HEIGHT - 210 + (i * 25)))
+                        screen.blit(fb_text, (40, HEIGHT - 250 + (i * 25)))
 
                 # Draw Play Again and Menu Buttons (Top Right)
                 pygame.draw.rect(screen, WHITE, btn_play_again)

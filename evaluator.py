@@ -1,7 +1,7 @@
 from constants import PIPS
 
 def evaluate_placements(board, player_color):
-    """Algorithm 2: Rates placements, port synergies, and road trajectories."""
+    """Algorithm 2: Rates placements, port synergies, road trajectories, and number diversity."""
     user_nodes = [n for n in board.nodes if n.building == player_color]
     user_edges = [e for e in board.edges if e.road == player_color]
     
@@ -10,29 +10,42 @@ def evaluate_placements(board, player_color):
 
     total_pips = 0
     resources_gathered = set()
+    numbers_gathered = set()
     resource_pips = {"Lumber": 0, "Brick": 0, "Sheep": 0, "Wheat": 0, "Ore": 0}
     owned_ports = []
     
-    # 1. Base Production & Port Identification
+    # 1. Base Production, Port Identification, and Number Tracking
     for node in user_nodes:
         for hex_tile in node.hexes:
             if hex_tile.number:
                 pip = PIPS.get(hex_tile.number, 0)
                 total_pips += pip
+                numbers_gathered.add(hex_tile.number) # Track unique numbers
+                
                 if hex_tile.resource != "Desert":
                     resources_gathered.add(hex_tile.resource)
                     resource_pips[hex_tile.resource] += pip
         
-        # Check if the settlement itself sits directly on a port
         for edge in node.edges:
-            if edge.port:
-                if edge.port not in owned_ports: # Prevent double counting
-                    owned_ports.append(edge.port)
+            if edge.port and edge.port not in owned_ports:
+                owned_ports.append(edge.port)
 
     feedback = []
     bonus_score = total_pips
 
-    # 2. Evaluate Diversity & Synergies
+    # 2. Evaluate Number Diversity
+    num_diversity = len(numbers_gathered)
+    if num_diversity >= 5:
+        feedback.append(f"Excellent number diversity ({num_diversity} unique numbers). Very consistent rolls.")
+        bonus_score += 3
+    elif num_diversity == 4:
+        feedback.append(f"Good number diversity ({num_diversity} unique numbers).")
+        bonus_score += 1
+    else:
+        feedback.append(f"Poor number diversity ({num_diversity} unique numbers). Production will be very spiky.")
+        bonus_score -= 2
+
+    # 3. Evaluate Resource Diversity & Synergies
     if len(resources_gathered) == 5:
         feedback.append("Perfect diversity! Access to all 5 resources.")
         bonus_score += 3
@@ -53,13 +66,13 @@ def evaluate_placements(board, player_color):
         feedback.append("CRITICAL: No Wheat. Game will be very difficult.")
         bonus_score -= 4
 
-    # 3. Evaluate Ports
+    # 4. Evaluate Ports
     for port in owned_ports:
         if port == "? 3:1":
             feedback.append("Great flexibility with a starting 3:1 Port.")
             bonus_score += 2
         else:
-            resource_type = port.split()[0]  # Extracts "Wheat" from "Wheat 2:1"
+            resource_type = port.split()[0]
             if resource_pips.get(resource_type, 0) >= 4:
                 feedback.append(f"Massive Synergy! High {resource_type} production on a {resource_type} port.")
                 bonus_score += 4
@@ -70,9 +83,8 @@ def evaluate_placements(board, player_color):
                 feedback.append(f"Decent {resource_type} port setup, but needs more {resource_type} pips.")
                 bonus_score += 1
 
-    # 4. Evaluate Roads (Expansion Trajectory)
+    # 5. Evaluate Roads (Expansion Trajectory)
     for i, edge in enumerate(user_edges):
-        # Identify the node the road points towards (the node without the settlement)
         target_node = None
         if edge.node1 in user_nodes and edge.node2 not in user_nodes:
             target_node = edge.node2
@@ -80,25 +92,23 @@ def evaluate_placements(board, player_color):
             target_node = edge.node1
             
         if target_node:
-            # Calculate potential of the target expansion node
             target_pips = sum([PIPS.get(h.number, 0) for h in target_node.hexes if h.number])
             target_has_port = any(e.port for e in target_node.edges)
             
-            # Distance rule check: Did you point your road directly into an enemy settlement?
             if not board.is_valid_settlement(target_node):
                 feedback.append(f"Road {i+1} Warning: Points to an invalid/blocked intersection!")
                 bonus_score -= 2
             elif target_has_port:
                 feedback.append(f"Road {i+1} Trajectory: Excellent! Pointing directly towards a new port.")
                 bonus_score += 2
-            elif target_pips >= 8: # 8 pips is a solid 3-hex intersection
+            elif target_pips >= 8:
                 feedback.append(f"Road {i+1} Trajectory: Strong! Points to a high-yield spot ({target_pips} pips).")
                 bonus_score += 2
             elif target_pips <= 4:
                 feedback.append(f"Road {i+1} Trajectory: Weak. Points to a low-yield dead zone ({target_pips} pips).")
                 bonus_score -= 1
 
-    # 5. Assign Grade (Adjusted thresholds for the new bonuses)
+    # 6. Assign Grade
     if bonus_score >= 32:
         grade = "S+ (God Tier)"
     elif bonus_score >= 26:
@@ -112,8 +122,8 @@ def evaluate_placements(board, player_color):
     else:
         grade = "D (Needs Improvement)"
 
-    # Slice feedback so it doesn't overflow the UI screen
-    if len(feedback) > 7:
-        feedback = feedback[:7]
+    # Slice feedback to 9 items so it fits nicely in the UI
+    if len(feedback) > 9:
+        feedback = feedback[:9]
 
     return grade, total_pips, feedback

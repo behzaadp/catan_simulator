@@ -13,9 +13,11 @@ def main():
     pygame.display.set_caption("Catan Placement Simulator")
     clock = pygame.time.Clock()
 
-    font_large = pygame.font.SysFont("Arial", 24, bold=True)
-    font_small = pygame.font.SysFont("Arial", 16, bold=True)
-    font_ui = pygame.font.SysFont("Arial", 28, bold=True)
+    # Load premium fonts using the new engine
+    font_large = get_font(24, "ui")
+    font_small = get_font(16, "ui")
+    font_ui = get_font(20, "ui")
+    font_avatar = get_font(18, "ui")
 
     state = "MENU"
     menu = Menu()
@@ -26,16 +28,23 @@ def main():
     current_turn_index = 0
     phase = "SETTLEMENT"
     last_placed_node = None
-    
-    # State variable for the evaluation panel UI
     panel_minimized = False
 
-    # End Game Buttons
+    # Pre-generate in-game Ocean Gradient Background
+    bg_surface = pygame.Surface((WIDTH, HEIGHT))
+    for y in range(HEIGHT):
+        r = OCEAN_BG_DARK[0] + (OCEAN_BG_LIGHT[0] - OCEAN_BG_DARK[0]) * y // HEIGHT
+        g = OCEAN_BG_DARK[1] + (OCEAN_BG_LIGHT[1] - OCEAN_BG_DARK[1]) * y // HEIGHT
+        b = OCEAN_BG_DARK[2] + (OCEAN_BG_LIGHT[2] - OCEAN_BG_DARK[2]) * y // HEIGHT
+        pygame.draw.line(bg_surface, (r, g, b), (0, y), (WIDTH, y))
+
     btn_play_again = pygame.Rect(WIDTH - 220, 20, 200, 50)
     btn_menu = pygame.Rect(WIDTH - 220, 80, 200, 50)
 
     running = True
     while running:
+        mouse_pos = pygame.mouse.get_pos()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -78,7 +87,6 @@ def main():
                                     phase = "SETTLEMENT"
                 else:
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        # FIXED: Click detection now precisely matches the drawn UI coordinates
                         if panel_minimized:
                             btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 55, 110, 30)
                         else:
@@ -115,29 +123,74 @@ def main():
                     else:
                         phase = "SETTLEMENT"
 
+        # --- DRAWING PHASE ---
         if state == "MENU":
-            menu.draw(screen)
+            menu.draw(screen, mouse_pos)
         elif state == "GAME":
-            screen.fill(BACKGROUND)
+            # Draw premium ocean background
+            screen.blit(bg_surface, (0, 0))
+            
+            # Draw Board (Will be heavily upgraded in Phase 3)
             board.draw(screen, font_large, font_small)
             
             if phase != "FINISHED":
-                current_player = players[draft_sequence[current_turn_index]]
-                order_names = [p["name"] for p in players]
-                order_text = font_ui.render(f"Draft Order: {', '.join(order_names)}", True, BLACK)
-                screen.blit(order_text, (20, 20))
+                # ----------------------------------------------------
+                # NEW HUD: TOP BAR TURN TRACKER (Glassmorphism Pill)
+                # ----------------------------------------------------
+                tracker_w = len(draft_sequence) * 50 + 40
+                tracker_h = 60
+                tracker_x = (WIDTH - tracker_w) // 2
+                tracker_y = 20
+                
+                pill_surf = pygame.Surface((tracker_w, tracker_h), pygame.SRCALPHA)
+                pygame.draw.rect(pill_surf, (*GLASS_BG_DARK, 220), pill_surf.get_rect(), border_radius=30)
+                pygame.draw.rect(pill_surf, (*SUBTLE_GRAY, 80), pill_surf.get_rect(), 2, border_radius=30)
+                screen.blit(pill_surf, (tracker_x, tracker_y))
+                
+                for i, p_idx in enumerate(draft_sequence):
+                    p_color = players[p_idx]["color"]
+                    cx = tracker_x + 45 + (i * 50)
+                    cy = tracker_y + 30
+                    
+                    # Highlight Active Player with glowing white ring
+                    if i == current_turn_index:
+                        pygame.draw.circle(screen, WHITE, (cx, cy), 20)
+                    
+                    pygame.draw.circle(screen, p_color, (cx, cy), 16)
+                    
+                    # Draw Initial Letter (Y for You, B for Bot)
+                    initial = players[p_idx]["name"][0]
+                    text_col = BLACK if p_color in [WHITE, PLAYER_COLORS[3]] else WHITE
+                    init_surf = font_avatar.render(initial, True, text_col)
+                    screen.blit(init_surf, init_surf.get_rect(center=(cx, cy)))
 
-                prompt = "Place a Settlement!" if phase == "SETTLEMENT" else "Place a Road!"
-                action_text = font_ui.render(f"{current_player['name']}'s Turn: {prompt}", True, current_player["color"])
-                shadow = font_ui.render(f"{current_player['name']}'s Turn: {prompt}", True, BLACK)
-                screen.blit(shadow, (21, 61))
-                screen.blit(action_text, (20, 60))
+                # ----------------------------------------------------
+                # NEW HUD: ACTION BANNER (Floating Center Bottom)
+                # ----------------------------------------------------
+                current_player = players[draft_sequence[current_turn_index]]
+                prompt = "Place a Settlement" if phase == "SETTLEMENT" else "Place a Road"
+                action_text = f"{current_player['name']}'s Turn: {prompt}"
+                
+                banner_surf = font_ui.render(action_text, True, WHITE)
+                banner_rect = banner_surf.get_rect(center=(WIDTH//2, HEIGHT - 60))
+                
+                # Banner Background
+                b_bg = pygame.Rect(0, 0, banner_rect.width + 70, 50)
+                b_bg.center = banner_rect.center
+                b_surf = pygame.Surface(b_bg.size, pygame.SRCALPHA)
+                pygame.draw.rect(b_surf, (*GLASS_BG_DARK, 220), b_surf.get_rect(), border_radius=25)
+                screen.blit(b_surf, b_bg.topleft)
+                
+                # Player Color Dot on Banner
+                pygame.draw.circle(screen, current_player["color"], (b_bg.left + 25, b_bg.centery), 10)
+                banner_rect.x += 15 # Shift text right to account for dot
+                screen.blit(banner_surf, banner_rect)
             
             else:
-                done_text = font_ui.render("Initial Placements Complete!", True, BLACK)
+                done_text = font_ui.render("Initial Placements Complete!", True, WHITE)
                 screen.blit(done_text, (20, 20))
 
-                # --- EVALUATION UI PANEL ---
+                # --- TEMP EVALUATION PANEL (Will be upgraded in Phase 4) ---
                 grade, pips, feedback = evaluate_placements(board, PLAYER_COLORS[0])
                 
                 if panel_minimized:
@@ -147,17 +200,14 @@ def main():
                     panel_rect = pygame.Rect(20, HEIGHT - 340, WIDTH - 40, 320)
                     btn_toggle = pygame.Rect(WIDTH - 130, HEIGHT - 325, 110, 30)
 
-                pygame.draw.rect(screen, (240, 240, 240), panel_rect, border_radius=10)
-                pygame.draw.rect(screen, BLACK, panel_rect, 3, border_radius=10)
+                pygame.draw.rect(screen, GLASS_BG_DARK, panel_rect, border_radius=10)
+                pygame.draw.rect(screen, SUBTLE_GRAY, panel_rect, 2, border_radius=10)
                 
-                # Draw Toggle Button
-                pygame.draw.rect(screen, (200, 200, 200), btn_toggle, border_radius=5)
-                pygame.draw.rect(screen, BLACK, btn_toggle, 2, border_radius=5)
+                pygame.draw.rect(screen, SUBTLE_GRAY, btn_toggle, border_radius=15)
                 toggle_label = "Expand ▲" if panel_minimized else "Minimize ▼"
                 toggle_text = font_small.render(toggle_label, True, BLACK)
                 screen.blit(toggle_text, toggle_text.get_rect(center=btn_toggle.center))
 
-                # Draw Panel Content
                 if panel_minimized:
                     title_text = font_ui.render(f"Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
                     screen.blit(title_text, (40, HEIGHT - 55))
@@ -165,22 +215,22 @@ def main():
                     title_text = font_ui.render(f"Evaluation - Grade: {grade}", True, PLAYER_COLORS[0])
                     screen.blit(title_text, (40, HEIGHT - 325))
                     
-                    pip_text = font_large.render(f"Total Raw Production (Pips): {pips}", True, BLACK)
+                    pip_text = font_ui.render(f"Total Raw Production (Pips): {pips}", True, WHITE)
                     screen.blit(pip_text, (40, HEIGHT - 285))
                     
                     for i, fb in enumerate(feedback):
-                        fb_text = font_small.render(f"• {fb}", True, (50, 50, 50))
+                        fb_text = font_small.render(f"• {fb}", True, SUBTLE_GRAY)
                         screen.blit(fb_text, (40, HEIGHT - 250 + (i * 25)))
 
-                # Draw Play Again and Menu Buttons 
-                pygame.draw.rect(screen, WHITE, btn_play_again)
-                pygame.draw.rect(screen, BLACK, btn_play_again, 3)
-                pa_text = font_large.render("Play Again", True, BLACK)
+                # Temporary Draw End Game Buttons (To be redesigned in Phase 4)
+                pygame.draw.rect(screen, GLASS_BG_DARK, btn_play_again, border_radius=25)
+                pygame.draw.rect(screen, SUBTLE_GRAY, btn_play_again, 2, border_radius=25)
+                pa_text = font_ui.render("Play Again", True, WHITE)
                 screen.blit(pa_text, pa_text.get_rect(center=btn_play_again.center))
 
-                pygame.draw.rect(screen, WHITE, btn_menu)
-                pygame.draw.rect(screen, BLACK, btn_menu, 3)
-                mm_text = font_large.render("Main Menu", True, BLACK)
+                pygame.draw.rect(screen, GLASS_BG_DARK, btn_menu, border_radius=25)
+                pygame.draw.rect(screen, SUBTLE_GRAY, btn_menu, 2, border_radius=25)
+                mm_text = font_ui.render("Main Menu", True, WHITE)
                 screen.blit(mm_text, mm_text.get_rect(center=btn_menu.center))
 
         pygame.display.flip()

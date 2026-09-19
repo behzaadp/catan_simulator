@@ -9,15 +9,15 @@ class Node:
         self.y = y
         self.hexes = []
         self.edges = []
-        self.building = None  # Will store player color
+        self.building = None  
 
 class Edge:
     def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
         self.hexes = []
-        self.road = None      # Will store player color
-        self.port = None      # Will store port type string
+        self.road = None      
+        self.port = None      
 
 class Hexagon:
     def __init__(self, q, r, resource, number=None):
@@ -27,17 +27,19 @@ class Hexagon:
         self.number = number
         self.x = WIDTH / 2 + HEX_SIZE * math.sqrt(3) * (q + r / 2)
         self.y = HEIGHT / 2 + HEX_SIZE * 3/2 * r
-        self.corners = [] # Will be populated with Node objects
+        self.corners = [] 
 
 class Board:
     def __init__(self):
         self.hexes = []
         self.nodes = []
         self.edges = []
+        # Initialize premium fonts for the board elements
+        self.font_token = get_font(26, "token")
+        self.font_port = get_font(13, "ui")
         self.generate_board()
 
     def _get_or_create_node(self, x, y):
-        # Prevent duplicate intersections due to floating point math
         for n in self.nodes:
             if math.hypot(n.x - x, n.y - y) < 5:
                 return n
@@ -93,7 +95,6 @@ class Board:
 
         # 3. Assign Ports to Coastal Edges
         outer_edges = [e for e in self.edges if len(e.hexes) == 1]
-        # Sort outer edges circularly to distribute ports evenly
         outer_edges.sort(key=lambda e: math.atan2(
             (e.node1.y + e.node2.y)/2 - HEIGHT/2, 
             (e.node1.x + e.node2.x)/2 - WIDTH/2
@@ -108,7 +109,6 @@ class Board:
     def is_valid_settlement(self, node):
         if node.building is not None:
             return False
-        # Distance rule: No adjacent nodes can have a building
         for edge in node.edges:
             neighbor = edge.node1 if edge.node2 == node else edge.node2
             if neighbor.building is not None:
@@ -131,42 +131,103 @@ class Board:
                 return edge
         return None
 
-    def draw(self, surface, font, small_font):
-        # Draw Hexes
+    def draw(self, surface, font_large, font_small):
+        # 1. DRAW UNIFIED ISLAND SHADOW
+        board_shadow = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for hex_tile in self.hexes:
             vertices = [(n.x, n.y) for n in hex_tile.corners]
-            pygame.draw.polygon(surface, COLORS[hex_tile.resource], vertices)
-            pygame.draw.polygon(surface, BLACK, vertices, 2)
-            
-            if hex_tile.number:
-                pygame.draw.circle(surface, WHITE, (int(hex_tile.x), int(hex_tile.y)), 20)
-                pygame.draw.circle(surface, BLACK, (int(hex_tile.x), int(hex_tile.y)), 20, 1)
-                num_color = (255, 0, 0) if hex_tile.number in [6, 8] else BLACK
-                text = font.render(str(hex_tile.number), True, num_color)
-                surface.blit(text, text.get_rect(center=(hex_tile.x, hex_tile.y - 5)))
-                pip_text = small_font.render("." * PIPS[hex_tile.number], True, num_color)
-                surface.blit(pip_text, pip_text.get_rect(center=(hex_tile.x, hex_tile.y + 10)))
+            pygame.draw.polygon(board_shadow, SHADOW_COLOR, vertices)
+        surface.blit(board_shadow, (0, SHADOW_OFFSET))
 
-        # Draw Ports, Roads, and Nodes
+        # 2. DRAW HEXAGONS & TOKENS
+        for hex_tile in self.hexes:
+            vertices = [(n.x, n.y) for n in hex_tile.corners]
+            base_color = COLORS[hex_tile.resource]
+            
+            # Base Fill
+            pygame.draw.polygon(surface, base_color, vertices)
+            
+            # Inner Bevel/Border for depth
+            darker_bevel = (max(base_color[0]-40, 0), max(base_color[1]-40, 0), max(base_color[2]-40, 0))
+            pygame.draw.polygon(surface, darker_bevel, vertices, 3)
+            
+            # Number Token
+            if hex_tile.number:
+                tx, ty = int(hex_tile.x), int(hex_tile.y)
+                
+                # Token Base (Parchment color)
+                pygame.draw.circle(surface, TOKEN_BG, (tx, ty), 20)
+                pygame.draw.circle(surface, darker_bevel, (tx, ty), 20, 1)
+                
+                # Typography
+                text_col = TOKEN_TEXT_CRIT if hex_tile.number in [6, 8] else TOKEN_TEXT_NORMAL
+                text_surf = self.font_token.render(str(hex_tile.number), True, text_col)
+                surface.blit(text_surf, text_surf.get_rect(center=(tx, ty - 3)))
+                
+                # Geometric Pips (Dots)
+                pips_count = PIPS[hex_tile.number]
+                pip_radius = 2.5
+                pip_spacing = 7
+                start_x = tx - ((pips_count - 1) * pip_spacing) / 2
+                for i in range(pips_count):
+                    px = int(start_x + i * pip_spacing)
+                    py = int(ty + 12)
+                    pygame.draw.circle(surface, text_col, (px, py), int(pip_radius))
+
+        # 3. DRAW PORTS (Maritime Badges)
         for edge in self.edges:
-            # Draw Port
             if edge.port:
-                pygame.draw.line(surface, BLACK, (edge.node1.x, edge.node1.y), (edge.node2.x, edge.node2.y), 8)
                 mx, my = (edge.node1.x + edge.node2.x) / 2, (edge.node1.y + edge.node2.y) / 2
                 angle = math.atan2(my - HEIGHT/2, mx - WIDTH/2)
-                tx, ty = mx + math.cos(angle) * 35, my + math.sin(angle) * 35
                 
-                pygame.draw.circle(surface, WHITE, (int(tx), int(ty)), 25)
-                pygame.draw.circle(surface, BLACK, (int(tx), int(ty)), 25, 2)
-                port_text = small_font.render(edge.port.split()[0], True, BLACK)
-                surface.blit(port_text, port_text.get_rect(center=(tx, ty - 5)))
+                # Push the badge out towards the water
+                bx = mx + math.cos(angle) * 35
+                by = my + math.sin(angle) * 35
                 
-            # Draw Road
-            if edge.road:
-                pygame.draw.line(surface, edge.road, (edge.node1.x, edge.node1.y), (edge.node2.x, edge.node2.y), 10)
+                # Connector Dashed/Solid Line
+                pygame.draw.line(surface, SUBTLE_GRAY, (mx, my), (bx, by), 3)
+                
+                # Badge Base
+                pygame.draw.circle(surface, SHADOW_COLOR, (int(bx), int(by + SHADOW_OFFSET)), 18)
+                pygame.draw.circle(surface, GLASS_BG_DARK, (int(bx), int(by)), 18)
+                pygame.draw.circle(surface, WHITE, (int(bx), int(by)), 18, 2)
+                
+                # Badge Text
+                port_type = edge.port.split()[0]
+                display_text = "3:1" if port_type == "?" else port_type[:2].upper()
+                p_color = COLORS.get(port_type, WHITE) if port_type != "?" else WHITE
+                
+                p_text = self.font_port.render(display_text, True, p_color)
+                surface.blit(p_text, p_text.get_rect(center=(bx, by)))
 
-        # Draw Settlements
+        # 4. DRAW ROADS
+        for edge in self.edges:
+            if edge.road:
+                # Road Casing (Outline)
+                pygame.draw.line(surface, GLASS_BG_DARK, (edge.node1.x, edge.node1.y), (edge.node2.x, edge.node2.y), 10)
+                # Road Core (Color)
+                pygame.draw.line(surface, edge.road, (edge.node1.x, edge.node1.y), (edge.node2.x, edge.node2.y), 6)
+
+        # 5. DRAW SETTLEMENTS (Geometric Houses)
         for node in self.nodes:
             if node.building:
-                pygame.draw.circle(surface, node.building, (int(node.x), int(node.y)), 12)
-                pygame.draw.circle(surface, BLACK, (int(node.x), int(node.y)), 12, 2)
+                hx, hy = node.x, node.y
+                size = 14
+                
+                # House Coordinates (Pentagon)
+                house_verts = [
+                    (hx - size*0.8, hy + size*0.8), # Bottom Left
+                    (hx + size*0.8, hy + size*0.8), # Bottom Right
+                    (hx + size*0.8, hy - size*0.2), # Top Right
+                    (hx, hy - size*1.2),            # Roof Peak
+                    (hx - size*0.8, hy - size*0.2)  # Top Left
+                ]
+                
+                # Drop Shadow
+                shadow_verts = [(vx, vy + SHADOW_OFFSET) for vx, vy in house_verts]
+                pygame.draw.polygon(surface, SHADOW_COLOR, shadow_verts)
+                
+                # House Body
+                pygame.draw.polygon(surface, node.building, house_verts)
+                # House Border
+                pygame.draw.polygon(surface, WHITE, house_verts, 2)

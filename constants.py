@@ -2,7 +2,7 @@ import pygame
 import os
 
 # --- CORE SETTINGS ---
-WIDTH, HEIGHT = 1000, 800
+WIDTH, HEIGHT = 1280, 720
 FPS = 60
 HEX_SIZE = 60
 
